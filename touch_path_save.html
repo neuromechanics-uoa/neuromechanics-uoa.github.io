@@ -8,6 +8,19 @@
         width: 600px;
         overflow: scroll;
       }
+
+      canvas {
+        padding-left: 0;
+        padding-right: 0;
+        margin-left: auto;
+        margin-right: auto;
+        display: block;
+        border:solid black 1px;
+      }
+
+      #btns {
+        text-align: center;
+      }
     </style>
   </head>
   <body>
@@ -22,12 +35,15 @@
       var save_btn = document.getElementById('save');
       save_btn.addEventListener('click', saveData, false);
       //log('Initialized.');
+
+      //var ctx=canvas.getContext("2d");
     }
     
     document.addEventListener("DOMContentLoaded", startup);
 
     const ongoingTouches = [];
 
+    var first_time = Date.now();
     var time = [];
     var x = [];
     var y = [];
@@ -39,19 +55,24 @@
       const ctx = el.getContext('2d');
       const touches = evt.changedTouches;
 
+      //var canvasOffset = $("#el").offset();
+      var offsetX = el.offsetLeft;
+      var offsetY = el.offsetTop;
+
       for (let i = 0; i < touches.length; i++) {
         //log(`touchstart: ${i}.`);
         ongoingTouches.push(copyTouch(touches[i]));
         const color = colorForTouch(touches[i]);
         //log(`color of touch with id ${touches[i].identifier} = ${color}`);
         ctx.beginPath();
-        ctx.arc(touches[i].pageX, touches[i].pageY, 4, 0, 2 * Math.PI, false);  // a circle at the start
+        //log(`offsetX: ${offsetX}.`);
+        ctx.arc(touches[i].clientX - el.offsetLeft, touches[i].clientY - el.offsetTop, 4, 0, 2 * Math.PI, false);  // a circle at the start
         ctx.fillStyle = color;
         ctx.fill();
 
-        time.push(d.getTime());
-        x.push(touches[i].pageX);
-        y.push(touches[i].pageY);
+        time.push(Date.now() - first_time);
+        x.push(touches[i].clientX);
+        y.push(touches[i].clientY);
       }
     }
 
@@ -69,18 +90,18 @@
           //log(`continuing touch ${idx}`);
           ctx.beginPath();
           //log(`ctx.moveTo( ${ongoingTouches[idx].pageX}, ${ongoingTouches[idx].pageY} );`);
-          ctx.moveTo(ongoingTouches[idx].pageX, ongoingTouches[idx].pageY);
+          ctx.moveTo(ongoingTouches[idx].clientX - el.offsetLeft, ongoingTouches[idx].clientY - el.offsetTop);
           //log(`ctx.lineTo( ${touches[i].pageX}, ${touches[i].pageY} );`);
-          ctx.lineTo(touches[i].pageX, touches[i].pageY);
+          ctx.lineTo(touches[i].clientX - el.offsetLeft, touches[i].clientY - el.offsetTop);
           ctx.lineWidth = 4;
           ctx.strokeStyle = color;
           ctx.stroke();
 
           ongoingTouches.splice(idx, 1, copyTouch(touches[i]));  // swap in the new touch record
 
-          time.push(Date.now());
-          x.push(touches[i].pageX);
-          y.push(touches[i].pageY);
+          time.push(Date.now() - first_time);
+          x.push(touches[i].clientX);
+          y.push(touches[i].clientY);
         } else {
           //log('can\'t figure out which touch to continue');
         }
@@ -102,9 +123,9 @@
           ctx.lineWidth = 4;
           ctx.fillStyle = color;
           ctx.beginPath();
-          ctx.moveTo(ongoingTouches[idx].pageX, ongoingTouches[idx].pageY);
-          ctx.lineTo(touches[i].pageX, touches[i].pageY);
-          ctx.fillRect(touches[i].pageX - 4, touches[i].pageY - 4, 8, 8);  // and a square at the end
+          ctx.moveTo(ongoingTouches[idx].clientX - el.offsetLeft, ongoingTouches[idx].clientY - el.offsetTop);
+          ctx.lineTo(touches[i].clientX - el.offsetLeft, touches[i].clientY - el.offsetTop);
+          ctx.fillRect(touches[i].clientX  - el.offsetLeft - 4, touches[i].clientY - el.offsetTop - 4, 8, 8);  // and a square at the end
           ongoingTouches.splice(idx, 1);  // remove it; we're done
         } else {
           //log('can\'t figure out which touch to end');
@@ -134,8 +155,8 @@
       return color;
     }
 
-    function copyTouch({ identifier, pageX, pageY }) {
-      return { identifier, pageX, pageY };
+    function copyTouch({ identifier, clientX, clientY }) {
+      return { identifier, clientX, clientY };
     }
 
     function ongoingTouchIndexById(idToFind) {
@@ -173,8 +194,10 @@
     };
 
     function saveData() {
+      var filename = document.getElementById("filename").value;
+
       var link = document.createElement('a');
-      link.setAttribute('download', 'data.csv');
+      link.setAttribute('download', filename);
 
       data = 'Time,x,y\n';
       //log("a\n");
@@ -194,12 +217,14 @@
     }
   </script>
 
-  <canvas id="canvas" width="600" height="600" style="border:solid black 1px;">
+  <canvas id="canvas" width="800px" height="400px">
     Your browser does not support canvas element.
   </canvas>
 
   <br>
   <!--Log: <pre id="log" style="border: 1px solid #ccc;"></pre>-->
-  <button id="save">Save data</button>
+  <div id="btns">
+    <input type="text" id="filename" value="data.csv"><button id="save">Save data</button>
+  </div>
   </body>
 </html>
