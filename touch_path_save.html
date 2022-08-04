@@ -11,6 +11,7 @@
     </style>
   </head>
   <body>
+
   <script>
     function startup() {
       const el = document.getElementById('canvas');
@@ -158,7 +159,7 @@
 
     function makeTextFile(text){
       var data = new Blob([text], {type: 'text/plain'});
-      log("b\n");
+      //log("b\n");
       // If we are replacing a previously generated file we need to
       // manually revoke the object URL to avoid memory leaks.
       if (textFile !== null) {
@@ -176,14 +177,14 @@
       link.setAttribute('download', 'data.csv');
 
       data = 'Time,x,y\n';
-      log("a\n");
+      //log("a\n");
       for (let j = 0; j < time.length; j++) {
         data += time[j] + ',' + x[j]
             + ',' + -y[j] + '\n';
       }
       link.href = makeTextFile(data);
       document.body.appendChild(link);
-      log("x");
+      //log("x");
       // wait for the link to be added to the document
       window.requestAnimationFrame(function () {
         var event = new MouseEvent('click');
@@ -192,16 +193,13 @@
       });
     }
   </script>
+
   <canvas id="canvas" width="600" height="600" style="border:solid black 1px;">
     Your browser does not support canvas element.
   </canvas>
+
   <br>
   <!--Log: <pre id="log" style="border: 1px solid #ccc;"></pre>-->
   <button id="save">Save data</button>
   </body>
 </html>
-  
-
-
-
-  
