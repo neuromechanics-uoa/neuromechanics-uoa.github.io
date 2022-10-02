@@ -202,7 +202,7 @@
       data = 'Time,x,y\n';
       //log("a\n");
       for (let j = 0; j < time.length; j++) {
-        data += time[j] + ',' + x[j]
+        data += time[j] - time[0] + ',' + x[j]
             + ',' + -y[j] + '\n';
       }
       link.href = makeTextFile(data);
