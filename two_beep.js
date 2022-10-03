@@ -1,6 +1,7 @@
+let ctxClass = window.audioContext || window.AudioContext || window.AudioContext || window.webkitAudioContext;
+let ctx = new ctxClass();
+
 function beep(frequency, duration, finishedCallback) {
-    var ctxClass = window.audioContext || window.AudioContext || window.AudioContext || window.webkitAudioContext;
-    var ctx = new ctxClass();
     var order = 0;
     
     mytext.textContent = 'beep ' + frequency;
