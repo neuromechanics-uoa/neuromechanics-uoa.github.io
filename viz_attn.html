@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script src="https://unpkg.com/jspsych@7.3.4"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-preload@1.1.3"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-html-button-response@1.2.0"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.3"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-canvas-keyboard-response@1.1.3"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-image-keyboard-response@1.1.3"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-webgazer-init-camera@1.0.3"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-webgazer-calibrate@1.0.3"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-webgazer-validate@1.0.3"></script>
+    <script src="https://cdn.jsdelivr.net/gh/jspsych/jspsych@jspsych@7.0.0/examples/js/webgazer/webgazer.js"></script>
+    <script src="https://unpkg.com/@jspsych/extension-webgazer@1.0.3"></script>
+    <script src='https://d3js.org/d3.v7.min.js'></script>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/jspsych@7.3.4/css/jspsych.css"
+    />
+    <style>
+      .jspsych-btn {
+        margin-bottom: 10px;
+      }
+    </style>
+  </head>
+  <body></body>
+  <script>
+
+      var jsPsych = initJsPsych({
+        extensions: [
+          {type: jsPsychExtensionWebgazer}
+        ]
+      });
+
+      var timeline = [];
+
+      var camera_instructions = {
+        type: jsPsychHtmlButtonResponse,
+        stimulus: `
+          <p>In order to participate you must allow the experiment to use your camera.</p>
+          <p>You will be prompted to do this on the next screen.</p>
+          <p>If you do not wish to allow use of your camera, you cannot participate in this experiment.<p>
+          <p>It may take up to 30 seconds for the camera to initialize after you give permission.</p>
+        `,
+        choices: ['Got it'],
+      }
+      timeline.push(camera_instructions);
+
+
+      var init_camera = {
+        type: jsPsychWebgazerInitCamera
+      }
+      timeline.push(init_camera);
+
+      var calibration_instructions = {
+        type: jsPsychHtmlButtonResponse,
+        stimulus: `
+          <p>Now you'll calibrate the eye tracking, so that the software can use the image of your eyes to predict where you are looking.</p>
+          <p>You'll see a series of dots appear on the screen. Look at each dot and click on it.</p>
+        `,
+        choices: ['Got it'],
+      }
+      timeline.push(calibration_instructions);
+
+      var calibration = {
+        type: jsPsychWebgazerCalibrate,
+        calibration_points: [
+          [25,25],[75,25],[50,50],[25,75],[75,75]
+        ],
+        repetitions_per_point: 2,
+        randomize_calibration_order: true
+      }
+      timeline.push(calibration);
+
+      var validation_instructions = {
+        type: jsPsychHtmlButtonResponse,
+        stimulus: `
+          <p>Now we'll measure the accuracy of the calibration.</p>
+          <p>Look at each dot as it appears on the screen.</p>
+          <p style="font-weight: bold;">You do not need to click on the dots this time.</p>
+        `,
+        choices: ['Got it'],
+        post_trial_gap: 1000
+      }
+      timeline.push(validation_instructions);
+
+      var validation = {
+        type: jsPsychWebgazerValidate,
+        validation_points: [
+          [25,25],[75,25],[50,50],[25,75],[75,75]
+        ],
+        roi_radius: 200,
+        time_to_saccade: 1000,
+        validation_duration: 2000,
+        data: {
+          task: 'validate'
+        }
+      }
+      timeline.push(validation);
+
+      var recalibrate_instructions = {
+        type: jsPsychHtmlButtonResponse,
+        stimulus: `
+          <p>The accuracy of the calibration is a little lower than we'd like.</p>
+          <p>Let's try calibrating one more time.</p>
+          <p>On the next screen, look at the dots and click on them.<p>
+        `,
+        choices: ['OK'],
+      }
+
+      var recalibrate = {
+        timeline: [recalibrate_instructions, calibration, validation_instructions, validation],
+        conditional_function: function(){
+          var validation_data = jsPsych.data.get().filter({task: 'validate'}).values()[0];
+          return validation_data.percent_in_roi.some(function(x){
+            var minimum_percent_acceptable = 50;
+            return x < minimum_percent_acceptable;
+          });
+        },
+        data: {
+          phase: 'recalibration'
+        }
+      }
+      timeline.push(recalibrate);
+
+      var calibration_done = {
+        type: jsPsychHtmlButtonResponse,
+        stimulus: `
+          <p>Great, we're done with calibration!</p>
+        `,
+        choices: ['OK']
+      }
+      timeline.push(calibration_done);
+
+      var begin = {
+        type: jsPsychHtmlButtonResponse,
+        stimulus: `<p>Next, several trials will be executed. For each trial, the screen will show 
+            several distractor symbols, and at some point, a red Go cue will appear on the screen in a random
+            location. Press the Space bar as quickly as possible after the Go cue appears. Your gaze
+            location and response times will be recorded for each trial.</p>
+        `,
+        choices: ['OK']
+      }
+      timeline.push(begin);
+
+      const stimuli_length = 5;
+
+      var cnrs = [];
+      cnrs.push({x: 300, y: 550});
+      cnrs.push({x: 516, y: 425});
+      cnrs.push({x: 516, y: 175});
+      cnrs.push({x: 300, y: 50});
+      cnrs.push({x: 83, y: 174});
+      cnrs.push({x: 83, y: 425});
+
+      var symbols = ['\u20E4', '\u20DE', '\u2715', '\u20DD', '\u25B7', '\u2460'];
+      var shuffled_symbols = jsPsych.randomization.repeat(symbols, 1);
+
+      function generateTimelineVariables() {
+        var variables = [];
+        for (let i = 0; i < stimuli_length; i++) {
+            var shuffledCnrs = jsPsych.randomization.sampleWithoutReplacement(cnrs, 6, true);
+            var xvals = [];
+            var yvals = [];
+            for (let j = 0; j < 6; j++) {
+              xvals.push(shuffledCnrs[j].x);
+              yvals.push(shuffledCnrs[j].y);
+            }
+            trial = {x: xvals, y:yvals};
+            variables.push(trial);
+        }
+        return variables;
+      }
+
+      var timeline_variables = generateTimelineVariables();
+      //console.log(timeline_variables);
+
+      function drawSymbols(c) {
+        var ctx = c.getContext('2d');
+        ctx.font = '48px serif';
+        ctx.fillStyle = 'black';
+        //console.log(jsPsych.timelineVariable('x'));
+        ctx.fillText(shuffled_symbols[0], jsPsych.timelineVariable('x')[0] + 25, jsPsych.timelineVariable('y')[0]); // triangle
+        ctx.fillText(shuffled_symbols[1], jsPsych.timelineVariable('x')[1], jsPsych.timelineVariable('y')[1]); // square
+        ctx.fillText(shuffled_symbols[2], jsPsych.timelineVariable('x')[2], jsPsych.timelineVariable('y')[2]); // cross
+        ctx.fillText(shuffled_symbols[3], jsPsych.timelineVariable('x')[3], jsPsych.timelineVariable('y')[3]); // circle
+        ctx.fillText(shuffled_symbols[4], jsPsych.timelineVariable('x')[4], jsPsych.timelineVariable('y')[4]); // sideways triangle
+        ctx.fillText(shuffled_symbols[5], jsPsych.timelineVariable('x')[5], jsPsych.timelineVariable('y')[5]); // circled one
+      }
+
+      function drawGoSymbols(c) {
+        var ctx = c.getContext('2d');
+        ctx.font = '48px serif';
+        ctx.fillStyle = 'black';
+        console.log(jsPsych.timelineVariable('x')[3]);
+        ctx.fillText(shuffled_symbols[0], jsPsych.timelineVariable('x')[0] + 25, jsPsych.timelineVariable('y')[0]); // triangle
+        ctx.fillText(shuffled_symbols[1], jsPsych.timelineVariable('x')[1], jsPsych.timelineVariable('y')[1]); // square
+        ctx.fillText(shuffled_symbols[2], jsPsych.timelineVariable('x')[2], jsPsych.timelineVariable('y')[2]); // cross
+        ctx.fillText(shuffled_symbols[4], jsPsych.timelineVariable('x')[4], jsPsych.timelineVariable('y')[4]); // sideways triangle
+        ctx.fillText(shuffled_symbols[5], jsPsych.timelineVariable('x')[5], jsPsych.timelineVariable('y')[5]); // circled one
+        ctx.fillStyle = 'red';
+        ctx.fillText(shuffled_symbols[3], jsPsych.timelineVariable('x')[3], jsPsych.timelineVariable('y')[3]); // circle
+      }
+
+      var random_duration = function() {
+        var rand_dur = jsPsych.randomization.sampleWithReplacement([400, 600, 800, 1000, 1200], 1)[0];
+        return rand_dur;
+      }
+
+      var warning = {
+        type: jsPsychCanvasKeyboardResponse,
+        canvas_size: [650, 650],
+        stimulus: drawSymbols,
+        choices: "NO_KEYS",
+        trial_duration: random_duration,
+        data: {
+          task: 'warning',
+          target_x: jsPsych.timelineVariable('x'), 
+          target_y: jsPsych.timelineVariable('y')
+        },
+        extensions: [
+          {
+            type: jsPsychExtensionWebgazer, 
+            params: {targets: ['#jspsych-canvas-keyboard-response-stimulus']}
+          }
+        ]
+      }
+
+      var go = {
+        type: jsPsychCanvasKeyboardResponse,
+        canvas_size: [650, 650],
+        stimulus: drawGoSymbols,
+        choices: " ",
+        trial_duration: 5000,
+        data: {
+          task : 'go',
+          target_x: jsPsych.timelineVariable('x'), 
+          target_y: jsPsych.timelineVariable('y')
+        },
+        extensions: [
+          {
+            type: jsPsychExtensionWebgazer, 
+            params: {targets: ['#jspsych-canvas-keyboard-response-stimulus']},
+          }
+        ]
+      }
+
+      var test_procedure = {
+        timeline: [warning, go],
+        timeline_variables: generateTimelineVariables(),
+        repetitions: 1,
+        randomize_order: true
+      };
+      timeline.push(test_procedure);
+
+      var show_data = {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: function() {
+          var trial_data = jsPsych.data.get().filter({trial_type: 'canvas-keyboard-response'}).values();
+          var trial_json = JSON.stringify(trial_data, null, 2);
+          const blob = new Blob([trial_json], {type: "text/plain"});
+          const url = URL.createObjectURL(blob);
+
+          return `<p style="margin-bottom:0px;"><strong>Trial data:</strong></p>
+            <p>Right-click on this link and select "Save link as...":<a href=${url}>data.json</a>,
+              then name file something sensible.</p>`;
+        },
+        choices: "NO_KEYS"
+      };
+      timeline.push(show_data);
+
+    jsPsych.run(timeline);
+
+  </script>
+</html>
