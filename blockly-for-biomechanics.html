@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Biomechanics Data Analysis Lab</title>
+  
+  <!-- Core Modern Blockly Library Bundle -->
+  <script src="https://unpkg.com/blockly/blockly.min.js"></script>
+  <!-- Python Code Generator Module -->
+  <script src="https://unpkg.com/blockly/python_compressed"></script>
+  
+  <!-- Pyodide In-Browser Python Engine -->
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js"></script>
+
+  <!-- PrismJS Core and Python Component Styles -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+
+  <style>
+    body { font-family: sans-serif; margin: 20px; background-color: #f4f6f9; color: #333; display: flex; flex-direction: column; height: calc(100vh - 40px); overflow: hidden; }
+    h2, p { margin: 0 0 5px 0; }
+    
+    .control-bar { background: #fff; padding: 12px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #ccc; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; gap: 15px; }
+    .control-group { display: flex; gap: 15px; align-items: center; }
+    
+    /* File list element container */
+    .file-registry-box { display: flex; align-items: center; gap: 6px; background: #edf2f7; padding: 6px 12px; border-radius: 6px; border: 1px dashed #cbd5e0; font-size: 12px; max-width: 320px; overflow-x: auto; white-space: nowrap; }
+    .file-badge { background: #4a5568; color: white; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 11px; }
+    
+    /* Root Workspace Flex Wrapper */
+    .grid-container { display: flex; flex-direction: column; flex: 1; min-height: 0; background: #fff; border: 1px solid #ccc; border-radius: 8px; overflow: hidden; }
+    
+    /* Upper and Lower Horizontal Panes */
+    .row-pane { display: flex; width: 100%; min-height: 100px; overflow: hidden; }
+    #upperRow { height: 60%; }
+    #lowerRow { flex: 1; background: #fafafa; }
+    
+    /* Individual Grid Blocks */
+    .grid-cell { position: relative; height: 100%; overflow: hidden; display: flex; flex-direction: column; }
+    #blocklyContainer { width: 60%; min-width: 200px; }
+    #codeContainer { flex: 1; min-width: 200px; background: #1e1e1e; }
+    #consoleContainer { width: 40%; min-width: 200px; background: #151515; border-right: 1px solid #333; }
+    #plotContainer { flex: 1; min-width: 200px; background: #fff; text-align: center; }
+    
+    #blocklyDiv { width: 100%; height: 100%; }
+    
+    /* Header labels inside sub-panels */
+    .panel-header { background: #e2e8f0; padding: 6px 12px; font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; color: #4a5568; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; }
+    #codeContainer .panel-header { background: #2d3748; color: #cbd5e0; }
+    #consoleContainer .panel-header { background: #2d3748; color: #cbd5e0; }
+    
+    /* Resizing Dividers */
+    .resize-handle-h { width: 8px; background: #e2e8f0; cursor: col-resize; transition: background 0.2s; position: relative; z-index: 10; flex-shrink: 0; }
+    .resize-handle-v { height: 8px; background: #e2e8f0; cursor: row-resize; transition: background 0.2s; position: relative; z-index: 10; flex-shrink: 0; }
+    .resize-handle-h:hover, .resize-handle-v:hover, .resize-handle-h.active, .resize-handle-v.active { background: #007bff; }
+    
+    /* Internal Elements Layout mapping */
+    pre[class*="language-"] { margin: 0; flex: 1; border-radius: 0; overflow: auto; font-size: 13px; height: 100%; }
+    code[class*="language-"] { font-family: 'Fira Code', monospace; }
+    
+    #output { color: #a6e22e; font-family: monospace; padding: 12px; overflow: auto; white-space: pre-wrap; margin: 0; font-size: 13px; flex: 1; }
+    
+    /* Fixed Interactive Matplotlib Navigation Layout Styles */
+    #plotTarget { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; overflow: auto; padding: 10px; }
+    #plotTarget canvas { max-width: 100%; height: auto !important; }
+    
+    /* Forces Matplotlib toolbar div row configuration and prevents grid vertical collapsing */
+    #plotTarget div { display: flex; flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px; }
+    #plotTarget br { display: none; }
+    
+    /* Targets the inner navigation buttons injected by Pyodide */
+    #plotTarget button { padding: 4px 8px; font-size: 11px; background: #f0f0f0; color: #333; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; font-weight: normal; display: inline-block; width: auto; height: auto; min-width: 24px; }
+    #plotTarget button:hover { background: #e0e0e0; }
+    #plotTarget button:empty::before { content: "⚙"; font-size: 12px; color: #666; }
+    
+    /* App Control Bar Elements override protection */
+    .control-bar button { padding: 10px 16px; font-size: 13px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 6px; }
+    .control-bar button:hover { background: #0056b3; }
+    .control-bar button:disabled { background: #ccc; cursor: not-allowed; }
+    
+    .btn-secondary { background: #6c757d; }
+    .btn-secondary:hover { background: #5a6268; }
+    .btn-danger { background: #dc3545; }
+    .btn-danger:hover { background: #bd2130; }
+    
+    .file-input-wrapper { display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
+  </style>
+</head>
+<body>
+
+  <h2>Biomechanics Lab: Resampling & Control Pipeline</h2>
+  <p>Leverage algorithmic logical blocks, signal interpolators, and data definitions with native 0-based indexing.</p>
+
+  <div class="control-bar">
+    <div class="control-group">
+      <div class="file-input-wrapper">
+        <strong>1. Upload Raw Data (CSV):</strong>
+        <input type="file" id="csvFileInput" accept=".csv" disabled />
+      </div>
+      <div class="file-registry-box" id="fileRegistry">
+        <span style="color: #718096; font-style: italic;">No session files loaded yet</span>
+      </div>
+      <button id="runBtn" disabled>Initializing Libraries...</button>
+    </div>
+    
+    <!-- Workspace Serialization Actions -->
+    <div class="control-group">
+      <button class="btn-secondary" onclick="saveWorkspaceToFile()">💾 Save Workspace</button>
+      <button class="btn-secondary" onclick="triggerWorkspaceUpload()">📂 Load Workspace</button>
+      <button class="btn-danger" onclick="clearWorkspaceAndCache()">🗑️ Clear Session</button>
+      <input type="file" id="workspaceFileInput" accept=".json" style="display: none;" onchange="loadWorkspaceFromFile(event)" />
+    </div>
+  </div>
+
+  <div class="grid-container" id="gridMaster">
+    
+    <!-- UPPER ROW: Blockly Canvas & Code Viewer -->
+    <div class="row-pane" id="upperRow">
+      <div class="grid-cell" id="blocklyContainer">
+        <div id="blocklyDiv"></div>
+      </div>
+      <div class="resize-handle-h" id="upperSplitter"></div>
+      <div class="grid-cell" id="codeContainer">
+        <div class="panel-header">Generated Python Code</div>
+        <pre class="language-python"><code id="pythonCode" class="language-python"># Program code displays cleanly here...</code></pre>
+      </div>
+    </div>
+    
+    <!-- VERTICAL MIDDLE DIVIDER: Resizes Row Heights -->
+    <div class="resize-handle-v" id="middleSplitter"></div>
+    
+    <!-- LOWER ROW: Console Diagnostics & Live Visual Plotting -->
+    <div class="row-pane" id="lowerRow">
+      <div class="grid-cell" id="consoleContainer">
+        <div class="panel-header">Console Output</div>
+        <pre id="output">System diagnostics...</pre>
+      </div>
+      <div class="resize-handle-h" id="lowerSplitter"></div>
+      <div class="grid-cell" id="plotContainer">
+        <div class="panel-header">Data Visualization Output</div>
+        <div id="plotTarget"></div>
+      </div>
+    </div>
+    
+  </div>
+
+  <!-- Declarative Unified Toolbox Setup -->
+  <xml id="toolbox" style="display: none">
+    <category name="Variables" custom="VARIABLE" color="#a55b80"></category>
+    <category name="Functions" custom="PROCEDURE" color="#995ba5"></category>
+    
+    <category name="Control Loops" color="#5b80a5">
+      <block type="controls_repeat_ext">
+        <value name="TIMES"><block type="math_number"><field name="NUM">10</field></block></value>
+      </block>
+      <block type="controls_whileUntil"></block>
+      <block type="controls_for">
+        <value name="FROM"><block type="math_number"><field name="NUM">0</field></block></value>
+        <value name="TO"><block type="math_number"><field name="NUM">9</field></block></value>
+        <value name="BY"><block type="math_number"><field name="NUM">1</field></block></value>
+      </block>
+      <block type="controls_forEach"></block>
+    </category>
+
+    <category name="Conditionals" color="#5b9fa5">
+      <block type="controls_if"></block>
+      <block type="logic_compare"></block>
+      <block type="logic_operation"></block>
+      <block type="logic_negate"></block>
+      <block type="logic_boolean"></block>
+    </category>
+
+    <category name="System Printing" color="#745ba5">
+      <block type="console_print"></block>
+    </category>
+
+    <category name="Type Constructors" color="#5ba5a4">
+      <block type="type_to_int"></block>
+      <block type="type_to_float"></block>
+      <block type="type_to_str"></block>
+      <block type="type_to_list"></block>
+    </category>
+
+    <category name="List Editing" color="#74a55b">
+      <block type="lists_create_with">
+        <mutation items="0"></mutation>
+      </block>
+      <block type="lists_create_with">
+        <mutation items="3"></mutation>
+      </block>
+      <block type="lists_repeat">
+        <value name="NUM"><block type="math_number"><field name="NUM">5</field></block></value>
+      </block>
+      <block type="lists_length"></block>
+      <block type="lists_isEmpty"></block>
+      <block type="lists_indexOf"></block>
+      <block type="lists_getIndex"></block>
+      <block type="lists_setIndex"></block>
+      <block type="lists_append"></block>
+    </category>
+
+    <category name="String Editing" color="#a55b5b">
+      <block type="text"></block>
+      <block type="text_join"></block>
+      <block type="text_append"></block>
+      <block type="text_length"></block>
+      <block type="text_isEmpty"></block>
+      <block type="text_indexOf"></block>
+      <block type="text_contains">
+        <value name="SUBSTRING">
+          <block type="text"><field name="TEXT">Left</field></block>
+        </value>
+      </block>
+    </category>
+
+    <category name="Data Import" color="#5ba58c">
+      <block type="pandas_read_csv">
+        <value name="FILE_PATH">
+          <block type="text">
+            <field name="TEXT">Walking03_Events.csv</field>
+          </block>
+        </value>
+      </block>
+      <block type="pandas_get_columns"></block>
+    </category>
+
+    <category name="Maths" color="#4a90e2">
+      <block type="numpy_arithmetic">
+        <value name="A">
+          <block type="math_number"><field name="NUM">1</field></block>
+        </value>
+        <value name="B">
+          <block type="math_number"><field name="NUM">1</field></block>
+        </value>
+      </block>
+      <block type="numpy_math_single"></block>
+      <block type="numpy_array_from_list"></block>
+      <block type="numpy_arange">
+        <value name="START">
+          <block type="math_number"><field name="NUM">0</field></block>
+        </value>
+        <value name="STOP">
+          <block type="math_number"><field name="NUM">10</field></block>
+        </value>
+        <value name="STEP">
+          <block type="math_number"><field name="NUM">1</field></block>
+        </value>
+      </block>
+      <block type="numpy_random_randint">
+        <value name="LOW">
+          <block type="math_number"><field name="NUM">0</field></block>
+        </value>
+        <value name="HIGH">
+          <block type="math_number"><field name="NUM">10</field></block>
+        </value>
+      </block>
+      <block type="numpy_array_shape"></block>
+      <block type="math_number"></block>
+    </category>
+
+    <category name="Data Processing" color="#a57b5b">
+      <block type="extract_column_vector">
+        <value name="COL_INDEX"><block type="math_number"><field name="NUM">0</field></block></value>
+      </block>
+      <block type="extract_column_vector_by_header">
+        <value name="COL_HEADER"><block type="text"><field name="TEXT">vgrf_z</field></block></value>
+      </block>
+      <block type="resample_vector"></block>
+      <block type="slice_vector">
+        <value name="START_INDEX"><block type="math_number"><field name="NUM">0</field></block></value>
+      </block>
+      <block type="filter_butterworth"></block>
+    </category>
+
+    <category name="Plotting" color="#5b67a5">
+      <block type="custom_plot">
+        <value name="TITLE">
+          <block type="text"><field name="TEXT">Biomechanics Metric Trace</field></block>
+        </value>
+        <value name="X_LABEL">
+          <block type="text"><field name="TEXT">Time (s)</field></block>
+        </value>
+        <value name="Y_LABEL">
+          <block type="text"><field name="TEXT">Magnitude</field></block>
+        </value>
+        <value name="COLOR">
+          <block type="text"><field name="TEXT">dodgerblue</field></block>
+        </value>
+      </block>
+      <block type="plot_axvline">
+        <value name="X">
+          <block type="math_number"><field name="NUM">0</field></block>
+        </value>
+        <value name="YMIN">
+          <block type="math_number"><field name="NUM">0</field></block>
+        </value>
+        <value name="YMAX">
+          <block type="math_number"><field name="NUM">1</field></block>
+        </value>
+        <value name="COLOR">
+          <block type="text"><field name="TEXT">crimson</field></block>
+        </value>
+      </block>
+    </category>
+  </xml>
+
+  <script>
+    let pyodideInstance = null;
+    let pyGenerator = null;
+    let changeListenerTimeout = null;
+    const sessionUploadedFiles = new Set();
+
+    if (typeof python !== 'undefined' && python.pythonGenerator) {
+      pyGenerator = python.pythonGenerator;
+    } else if (Blockly.Python) {
+      pyGenerator = Blockly.Python;
+    }
+
+    function getAtomicOrder(gen) {
+      if (gen.Order && gen.Order.ATOMIC !== undefined) return gen.Order.ATOMIC;
+      if (gen.ORDER_ATOMIC !== undefined) return gen.ORDER_ATOMIC;
+      return 0;
+    }
+
+    // =========================================================
+    // DECLARE CUSTOM BLOCKS WITH NATIVE 1D ARRAY SCHEMATICS
+    // =========================================================
+    Blockly.common.defineBlocksWithJsonArray([
+      {
+        "type": "console_print",
+        "message0": "print to console %1",
+        "args0": [ { "type": "input_value", "name": "PRINT_DATA" } ],
+        "previousStatement": null, "nextStatement": null, "colour": 260
+      },
+      {
+        "type": "type_to_int",
+        "message0": "convert to integer %1",
+        "args0": [ { "type": "input_value", "name": "VALUE" } ],
+        "output": "Number", "colour": 185
+      },
+      {
+        "type": "type_to_float",
+        "message0": "convert to float %1",
+        "args0": [ { "type": "input_value", "name": "VALUE" } ],
+        "output": "Number", "colour": 185
+      },
+      {
+        "type": "type_to_str",
+        "message0": "convert to string %1",
+        "args0": [ { "type": "input_value", "name": "VALUE" } ],
+        "output": "String", "colour": 185
+      },
+      {
+        "type": "type_to_list",
+        "message0": "convert to list %1",
+        "args0": [ { "type": "input_value", "name": "VALUE" } ],
+        "output": "Array", "colour": 185
+      },
+      {
+        "type": "pandas_read_csv",
+        "message0": "Load CSV File %1 Header Option: %2",
+        "args0": [
+          { "type": "input_value", "name": "FILE_PATH", "check": "String" },
+          {
+            "type": "field_dropdown",
+            "name": "HEADER_OPT",
+            "options": [
+              ["First Row is Header (Index 0)", "0"],
+              ["No Header Rows", "None"],
+              ["Auto-detect / Infer", "'infer'"]
+            ]
+          }
+        ],
+        "output": null, "colour": 160
+      },
+      {
+        "type": "pandas_get_columns",
+        "message0": "get column names of DataFrame %1",
+        "args0": [ { "type": "input_value", "name": "DF" } ],
+        "output": "Array", "colour": 160
+      },
+      {
+        "type": "text_contains",
+        "message0": "text %1 contains substring %2",
+        "args0": [
+          { "type": "input_value", "name": "TEXT", "check": "String" },
+          { "type": "input_value", "name": "SUBSTRING", "check": "String" }
+        ],
+        "output": "Boolean", "colour": 120
+      },
+      {
+        "type": "lists_append",
+        "message0": "to list %1 append item %2",
+        "args0": [
+          { "type": "input_value", "name": "LIST", "check": "Array" },
+          { "type": "input_value", "name": "ITEM" }
+        ],
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 120
+      },
+      {
+        "type": "numpy_arithmetic",
+        "message0": "%1 %2 %3",
+        "args0": [
+          { "type": "input_value", "name": "A" },
+          {
+            "type": "field_dropdown",
+            "name": "OP",
+            "options": [ ["+", "+"], ["-", "-"], ["×", "*"], ["/", "/"], ["^", "**"] ]
+          },
+          { "type": "input_value", "name": "B" }
+        ],
+        "inputsInline": true, "output": null, "colour": 210
+      },
+      {
+        "type": "numpy_math_single",
+        "message0": "%1 of %2",
+        "args0": [
+          {
+            "type": "field_dropdown",
+            "name": "OP",
+            "options": [
+              ["abs", "np.abs"], ["sqrt", "np.sqrt"], ["sin", "np.sin"], 
+              ["cos", "np.cos"], ["tan", "np.tan"], ["log (ln)", "np.log"], ["exp", "np.exp"]
+            ]
+          },
+          { "type": "input_value", "name": "INPUT" }
+        ],
+        "output": null, "colour": 210
+      },
+      {
+        "type": "numpy_arange",
+        "message0": "numpy arange from %1 to %2 step %3",
+        "args0": [
+          { "type": "input_value", "name": "START", "check": "Number" },
+          { "type": "input_value", "name": "STOP", "check": "Number" },
+          { "type": "input_value", "name": "STEP", "check": "Number" }
+        ],
+        "inputsInline": true, "output": null, "colour": 210
+      },
+      {
+        "type": "numpy_array_from_list",
+        "message0": "numpy array from list %1",
+        "args0": [ { "type": "input_value", "name": "LIST", "check": "Array" } ],
+        "output": null, "colour": 210
+      },
+      {
+        "type": "numpy_random_randint",
+        "message0": "random int from %1 to %2 size/shape %3",
+        "args0": [
+          { "type": "input_value", "name": "LOW", "check": "Number" },
+          { "type": "input_value", "name": "HIGH", "check": "Number" },
+          { "type": "input_value", "name": "SIZE" }
+        ],
+        "inputsInline": true, "output": null, "colour": 210
+      },
+      {
+        "type": "numpy_array_shape",
+        "message0": "shape of array %1",
+        "args0": [ { "type": "input_value", "name": "ARRAY" } ],
+        "output": null, "colour": 210
+      },
+      {
+        "type": "extract_column_vector",
+        "message0": "From Matrix/DataFrame %1 Extract Column Index %2",
+        "args0": [
+          { "type": "input_value", "name": "INPUT_MATRIX" },
+          { "type": "input_value", "name": "COL_INDEX", "check": "Number" }
+        ],
+        "output": "Array", "colour": 145
+      },
+      {
+        "type": "extract_column_vector_by_header",
+        "message0": "From DataFrame %1 Extract Column by Header Name %2",
+        "args0": [
+          { "type": "input_value", "name": "INPUT_DF" },
+          { "type": "input_value", "name": "COL_HEADER", "check": "String" }
+        ],
+        "output": "Array", "colour": 145
+      },
+      {
+        "type": "resample_vector",
+        "message0": "Resample Array %1 to New Total Samples %2",
+        "args0": [
+          { "type": "input_value", "name": "INPUT_VECTOR", "check": "Array" },
+          { "type": "input_value", "name": "NUM_SAMPLES", "check": "Number" }
+        ],
+        "output": "Array", "colour": 340
+      },
+      {
+        "type": "slice_vector",
+        "message0": "Slice NumPy Array %1 from Start index %2 to Stop index %3",
+        "args0": [
+          { "type": "input_value", "name": "INPUT_VECTOR", "check": "Array" },
+          { "type": "input_value", "name": "START_INDEX", "check": "Number" },
+          { "type": "input_value", "name": "STOP_INDEX", "check": "Number" }
+        ],
+        "output": "Array", "colour": 25
+      },
+      {
+        "type": "filter_butterworth",
+        "message0": "Filter Array %1 Sampling Freq (Hz) %2 Cutoff Freq (Hz) %3 Type %4 Order %5",
+        "args0": [
+          { "type": "input_value", "name": "INPUT_VECTOR", "check": "Array" },
+          { "type": "input_value", "name": "FS", "check": "Number" },
+          { "type": "input_value", "name": "CUTOFF", "check": "Number" },
+          { "type": "field_dropdown", "name": "FILTER_TYPE", "options": [["Lowpass", "low"], ["Highpass", "high"]] },
+          { "type": "input_value", "name": "ORDER", "check": "Number" }
+        ],
+        "output": "Array", "colour": 45
+      },
+      {
+        "type": "custom_plot",
+        "message0": "Plot Y-Data %1 (Optional X-Data) %2 Chart Title %3 X-Axis Label %4 Y-Axis Label %5 Series Label %6 Line Color %7",
+        "args0": [
+          { "type": "input_value", "name": "DATA_VECTOR", "check": "Array" },
+          { "type": "input_value", "name": "X_VECTOR", "check": "Array" },
+          { "type": "input_value", "name": "TITLE", "check": "String" },
+          { "type": "input_value", "name": "X_LABEL", "check": "String" },
+          { "type": "input_value", "name": "Y_LABEL", "check": "String" },
+          { "type": "input_value", "name": "SERIES_LABEL", "check": "String" },
+          { "type": "input_value", "name": "COLOR", "check": "String" }
+        ],
+        "previousStatement": null, "nextStatement": null, "colour": 230
+      },
+      {
+        "type": "plot_axvline",
+        "message0": "Draw Vertical Line at X %1 Y-Min %2 Y-Max %3 Line Color %4",
+        "args0": [
+          { "type": "input_value", "name": "X", "check": "Number" },
+          { "type": "input_value", "name": "YMIN", "check": "Number" },
+          { "type": "input_value", "name": "YMAX", "check": "Number" },
+          { "type": "input_value", "name": "COLOR", "check": "String" }
+        ],
+        "previousStatement": null, "nextStatement": null, "colour": 230
+      }
+    ]);
+
+    // =========================================================
+    // 1D MATH & PYTHON CODE GENERATORS
+    // =========================================================
+    pyGenerator.forBlock['numpy_arithmetic'] = function(block, generator) {
+      const gen = generator || pyGenerator; const atomic = getAtomicOrder(gen);
+      const argA = gen.valueToCode(block, 'A', atomic) || '0';
+      const argB = gen.valueToCode(block, 'B', atomic) || '0';
+      return [`(np.asarray(${argA}) ${block.getFieldValue('OP')} np.asarray(${argB}))`, atomic];
+    };
+
+    pyGenerator.forBlock['numpy_math_single'] = function(block, generator) {
+      const gen = generator || pyGenerator; const atomic = getAtomicOrder(gen);
+      const input = gen.valueToCode(block, 'INPUT', atomic) || '0';
+      return [`${block.getFieldValue('OP')}(np.asarray(${input}))`, atomic];
+    };
+
+    pyGenerator.forBlock['pandas_read_csv'] = function(block, generator) {
+      const gen = generator || pyGenerator; const atomic = getAtomicOrder(gen);
+      return [`pd.read_csv(${gen.valueToCode(block, 'FILE_PATH', atomic) || '"data.csv"'}, header=${block.getFieldValue('HEADER_OPT')})`, atomic];
+    };
+
+    pyGenerator.forBlock['pandas_get_columns'] = function(block, generator) {
+      const gen = generator || pyGenerator; const atomic = getAtomicOrder(gen);
+      const dfCode = gen.valueToCode(block, 'DF', atomic) || 'pd.DataFrame()';
+      return [`list(${dfCode}.columns)`, atomic];
+    };
+
+    pyGenerator.forBlock['text_contains'] = function(block, generator) {
+      const gen = generator || pyGenerator; const atomic = getAtomicOrder(gen);
+      const textCode = gen.valueToCode(block, 'TEXT', atomic) || '""';
+      const subCode = gen.valueToCode(block, 'SUBSTRING', atomic) || '""';
+      return [`(${subCode} in ${textCode})`, atomic];
+    };
+
+    pyGenerator.forBlock['lists_append'] = function(block, generator) {
+      const gen = generator || pyGenerator;
+      const listCode = gen.valueToCode(block, 'LIST', getAtomicOrder(gen)) || '[]';
+      const itemCode = gen.valueToCode(block, 'ITEM', getAtomicOrder(gen)) || 'None';
+      return `${listCode}.append(${itemCode})\n`;
+    };
+
+    pyGenerator.forBlock['numpy_arange'] = function(block, generator) {
+      const gen = generator || pyGenerator; const atomic = getAtomicOrder(gen);
+      return [`np.arange(${gen.valueToCode(block, 'START', atomic) || '0'}, ${gen.valueToCode(block, 'STOP', atomic) || '10'}, ${gen.valueToCode(block, 'STEP', atomic) || '1'})`, atomic];
+    };
+
+    pyGenerator.forBlock['numpy_array_from_list'] = function(block, generator) {
+      const gen = generator || pyGenerator; const atomic = getAtomicOrder(gen);
+      return [`np.array(${gen.valueToCode(block, 'LIST', atomic) || '[]'})`, atomic];
+    };
+
+    pyGenerator.forBlock['numpy_random_randint'] = function(block, generator) {
+      const gen = generator || pyGenerator; const atomic = getAtomicOrder(gen);
+      const size = gen.valueToCode(block, 'SIZE', atomic);
+      return [`np.random.randint(${gen.valueToCode(block, 'LOW', atomic) || '0'}, ${gen.valueToCode(block, 'HIGH', atomic) || '10'}${size ? ', size=' + size : ''})`, atomic];
+    };
+
+    pyGenerator.forBlock['numpy_array_shape'] = function(block, generator) {
+      const gen = generator || pyGenerator; const atomic = getAtomicOrder(gen);
+      const array = gen.valueToCode(block, 'ARRAY', atomic) || 'np.array([])';
+      return [`np.asarray(${array}).shape`, atomic];
+    };
+
+    pyGenerator.forBlock['console_print'] = function(block, generator) {
+      return `print(${generator.valueToCode(block, 'PRINT_DATA', getAtomicOrder(generator)) || '""'})\n`;
+    };
+
+    pyGenerator.forBlock['type_to_int'] = function(block, generator) { return [`int(${generator.valueToCode(block, 'VALUE', getAtomicOrder(generator)) || '0'})`, getAtomicOrder(generator)]; };
+    pyGenerator.forBlock['type_to_float'] = function(block, generator) { return [`float(${generator.valueToCode(block, 'VALUE', getAtomicOrder(generator)) || '0.0'})`, getAtomicOrder(generator)]; };
+    pyGenerator.forBlock['type_to_str'] = function(block, generator) { return [`str(${generator.valueToCode(block, 'VALUE', getAtomicOrder(generator)) || '""'})`, getAtomicOrder(generator)]; };
+    pyGenerator.forBlock['type_to_list'] = function(block, generator) { return [`list(${generator.valueToCode(block, 'VALUE', getAtomicOrder(generator)) || '[]'})`, getAtomicOrder(generator)]; };
+    
+    pyGenerator.forBlock['extract_column_vector'] = function(block, generator) {
+      const gen = generator || pyGenerator; const atomic = getAtomicOrder(gen);
+      const matrixCode = gen.valueToCode(block, 'INPUT_MATRIX', atomic) || "pd.DataFrame()";
+      const colIdx = gen.valueToCode(block, 'COL_INDEX', atomic) || "0";
+      return [`(lambda m: (m.to_numpy() if hasattr(m, "to_numpy") else np.asarray(m))[:, int(${colIdx})][~pd.isna((m.to_numpy() if hasattr(m, "to_numpy") else np.asarray(m))[:, int(${colIdx})])])(${matrixCode})`, atomic];
+    };
+
+    pyGenerator.forBlock['extract_column_vector_by_header'] = function(block, generator) {
+      const gen = generator || pyGenerator; const atomic = getAtomicOrder(gen);
+      const dfCode = gen.valueToCode(block, 'INPUT_DF', atomic) || "pd.DataFrame()";
+      const headerName = gen.valueToCode(block, 'COL_HEADER', atomic) || '""';
+      
+      const inlineLambda = `(lambda df, name: (
+    exec('if not hasattr(df, "columns") or not hasattr(df, "to_numpy"): raise TypeError("Provided structure is not a Pandas DataFrame object.")'),
+    exec('if isinstance(df.columns, pd.RangeIndex): raise ValueError("The data structure does not contain descriptive structural column header labels (Numeric Index Found). Check your Load CSV Header configuration dropdown.")'),
+    exec('if name not in df.columns: raise KeyError(f"The header label \\'{name}\\' does not exist inside this frame structure. Available choices are: {list(df.columns)}")'),
+    df[name].to_numpy()[~pd.isna(df[name].to_numpy())]
+)[-1])(${dfCode}, ${headerName})`;
+
+      return [inlineLambda, atomic];
+    };
+    
+    pyGenerator.forBlock['resample_vector'] = function(block, generator) {
+      const gen = generator || pyGenerator; const atomic = getAtomicOrder(gen);
+      return [`(lambda d: signal.resample(d, int(${gen.valueToCode(block, 'NUM_SAMPLES', atomic) || "100"}), axis=0) if d.size > 0 else np.array([]))(np.asarray(${gen.valueToCode(block, 'INPUT_VECTOR', atomic) || "np.array([])"}))`, atomic];
+    };
+    
+    pyGenerator.forBlock['slice_vector'] = function(block, generator) {
+      const gen = generator || pyGenerator; const atomic = getAtomicOrder(gen);
+      return [`np.asarray(${gen.valueToCode(block, 'INPUT_VECTOR', atomic) || "np.array([])"})[int(${gen.valueToCode(block, 'START_INDEX', atomic) || "0"}):int(${gen.valueToCode(block, 'STOP_INDEX', atomic) || "None"}) if '${gen.valueToCode(block, 'STOP_INDEX', atomic)}' != 'None' else None]`, atomic];
+    };
+    
+    pyGenerator.forBlock['filter_butterworth'] = function(block, generator) {
+      const gen = generator || pyGenerator; const atomic = getAtomicOrder(gen);
+      return [`(lambda d: signal.sosfiltfilt(signal.butter(int(${gen.valueToCode(block, 'ORDER', atomic) || "4"}), float(${gen.valueToCode(block, 'CUTOFF', atomic) || "5"}), btype='${block.getFieldValue('FILTER_TYPE')}', fs=float(${gen.valueToCode(block, 'FS', atomic) || "100"}), output='sos'), d, axis=0) if d.size > 0 else np.array([]))(np.asarray(${gen.valueToCode(block, 'INPUT_VECTOR', atomic) || "np.array([])"}))`, atomic];
+    };
+    
+    pyGenerator.forBlock['custom_plot'] = function(block, generator) {
+      const gen = generator || pyGenerator; const atomic = getAtomicOrder(gen);
+      
+      const yDataCode = gen.valueToCode(block, 'DATA_VECTOR', atomic) || "np.array([])";
+      const xDataCode = gen.valueToCode(block, 'X_VECTOR', atomic) || "None";
+      const titleCode = gen.valueToCode(block, 'TITLE', atomic) || "'Biomechanics Metric Trace'";
+      const xLabelCode = gen.valueToCode(block, 'X_LABEL', atomic) || "'Time (s)'";
+      const yLabelCode = gen.valueToCode(block, 'Y_LABEL', atomic) || "'Magnitude'";
+      const seriesLabelCode = gen.valueToCode(block, 'SERIES_LABEL', atomic) || "None";
+      const colorCode = gen.valueToCode(block, 'COLOR', atomic) || "'dodgerblue'";
+
+      return `
+try:
+    y_data = np.asarray(${yDataCode})
+    x_data = np.asarray(${xDataCode}) if ${xDataCode} is not None else None
+    
+    if y_data.size > 0:
+        if not plt.get_fignums():
+            plt.figure(figsize=(6, 4))
+            plt.title(${titleCode})
+            plt.xlabel(${xLabelCode})
+            plt.ylabel(${yLabelCode})
+            plt.grid(True)
+            
+        lbl = ${seriesLabelCode} if ${seriesLabelCode} is not None else ${yLabelCode}
+        
+        if x_data is not None and x_data.size == y_data.size:
+            plt.plot(x_data, y_data, color=${colorCode}, linewidth=2, label=lbl)
+        else:
+            if x_data is not None:
+                print("Warning: X and Y array dimension mismatch. Defaulting to standard horizontal indexing.")
+            plt.plot(y_data, color=${colorCode}, linewidth=2, label=lbl)
+            
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+        print(f"Added vector plot element containing {y_data.size} data rows.")
+    else:
+        print("Warning: Supplied NumPy array was completely empty.")
+except Exception as plot_err:
+    print(f"Plotting system runtime failure: {str(plot_err)}")
+`;
+    };
+
+    pyGenerator.forBlock['plot_axvline'] = function(block, generator) {
+      const gen = generator || pyGenerator; const atomic = getAtomicOrder(gen);
+      
+      const xVal = gen.valueToCode(block, 'X', atomic) || "0";
+      const yMin = gen.valueToCode(block, 'YMIN', atomic) || "0";
+      const yMax = gen.valueToCode(block, 'YMAX', atomic) || "1";
+      const colorVal = gen.valueToCode(block, 'COLOR', atomic) || "'crimson'";
+
+      return `
+if plt.get_fignums():
+    plt.axvline(x=float(${xVal}), ymin=float(${yMin}), ymax=float(${yMax}), color=${colorVal}, linestyle='--', linewidth=1.5)
+    plt.draw()
+else:
+    print("Warning: Cannot draw an independent vertical threshold line without an active base figure canvas initialized first.")
+`;
+    };
+
+    // Blockly Injection
+    const workspace = Blockly.inject('blocklyDiv', {
+      toolbox: document.getElementById('toolbox'),
+      grid: { spacing: 20, length: 3, colour: '#ccc', snap: true }
+    });
+
+    function cleanAndGenerateCode() {
+      try {
+        pyGenerator.definitions_ = Object.create(null); 
+        let mainCode = pyGenerator.workspaceToCode(workspace);
+        let compiledCode = mainCode.trim() ? "import pandas as pd\nimport numpy as np\nimport matplotlib.pyplot as plt\nimport io\nfrom scipy import signal\n\n" + mainCode : "";
+        
+        const codeElement = document.getElementById('pythonCode');
+        codeElement.textContent = compiledCode || "# Workspace empty. Chain components together.";
+        Prism.highlightElement(codeElement);
+        return compiledCode;
+      } catch(err) {
+        document.getElementById('pythonCode').textContent = "# Generation Error: " + err.message;
+        return "";
+      }
+    }
+
+    // Workspace Serialization & Storage Actions
+    function saveWorkspaceToLocalStorage() {
+      try { localStorage.setItem('biomechanics_blocks_state_v8', JSON.stringify(Blockly.serialization.workspaces.save(workspace))); } catch (e) {}
+    }
+    function loadWorkspaceFromLocalStorage() {
+      try { const saved = localStorage.getItem('biomechanics_blocks_state_v8'); if (saved) Blockly.serialization.workspaces.load(JSON.parse(saved), workspace); } catch (e) {}
+    }
+    function saveWorkspaceToFile() {
+      const blob = new Blob([JSON.stringify(Blockly.serialization.workspaces.save(workspace), null, 2)], { type: 'application/json' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'biomechanics_pipeline.json'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }
+    function triggerWorkspaceUpload() { document.getElementById('workspaceFileInput').click(); }
+    function loadWorkspaceFromFile(event) {
+      const file = event.target.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          workspace.clear(); Blockly.serialization.workspaces.load(JSON.parse(e.target.result), workspace);
+          cleanAndGenerateCode(); saveWorkspaceToLocalStorage();
+        } catch (err) { alert("Error parsing workspace file."); }
+      };
+      reader.readAsText(file); event.target.value = '';
+    }
+
+    // Wipes all pipeline logic components and resets browser state cache safely
+    function clearWorkspaceAndCache() {
+      if (confirm("Are you sure you want to completely clear the workspace session? This deletes all structural logic blocks and current tracking variables.")) {
+        workspace.clear();
+        localStorage.removeItem('biomechanics_blocks_state_v8');
+        cleanAndGenerateCode();
+        document.getElementById('output').textContent = "Workspace session cleared successfully. Diagnostics initialized.";
+      }
+    }
+
+    workspace.addChangeListener(function(event) {
+      if (event.workspaceId !== workspace.id || event.isUiEvent || event.type === Blockly.Events.VIEWPORT_CHANGE || event.type === Blockly.Events.BLOCK_DRAG) return;
+      if (changeListenerTimeout) clearTimeout(changeListenerTimeout);
+      changeListenerTimeout = setTimeout(() => { cleanAndGenerateCode(); saveWorkspaceToLocalStorage(); }, 150);
+    });
+
+    loadWorkspaceFromLocalStorage();
+
+    // Horizontal & Vertical Layout Drag Configuration
+    const gridMaster = document.getElementById('gridMaster');
+    const upperRow = document.getElementById('upperRow');
+    const blocklyCont = document.getElementById('blocklyContainer');
+    const consoleCont = document.getElementById('consoleContainer');
+    let activeDrag = null;
+
+    function initResize(handle, type) {
+      handle.addEventListener('mousedown', function(e) {
+        activeDrag = type; handle.classList.add('active');
+        document.body.style.cursor = type === 'V' ? 'row-resize' : 'col-resize';
+        document.body.style.userSelect = 'none'; e.preventDefault();
+      });
+    }
+    initResize(document.getElementById('upperSplitter'), 'UH');
+    initResize(document.getElementById('middleSplitter'), 'V');
+    initResize(document.getElementById('lowerSplitter'), 'LH');
+
+    document.addEventListener('mousemove', function(e) {
+      if (!activeDrag) return;
+      const rect = gridMaster.getBoundingClientRect();
+      if (activeDrag === 'V') {
+        const pctY = ((e.clientY - rect.top) / rect.height) * 100;
+        if (pctY > 15 && pctY < 85) { upperRow.style.height = pctY + '%'; Blockly.svgResize(workspace); }
+      } else if (activeDrag === 'UH') {
+        const pctX = ((e.clientX - rect.left) / rect.width) * 100;
+        if (pctX > 15 && pctX < 85) { blocklyCont.style.width = pctX + '%'; Blockly.svgResize(workspace); }
+      } else if (activeDrag === 'LH') {
+        const pctX = ((e.clientX - rect.left) / rect.width) * 100;
+        if (pctX > 15 && pctX < 85) consoleCont.style.width = pctX + '%';
+      }
+    });
+
+    document.addEventListener('mouseup', function() {
+      if (activeDrag) {
+        document.querySelectorAll('.resize-handle-h, .resize-handle-v').forEach(h => h.classList.remove('active'));
+        document.body.style.cursor = 'default'; document.body.style.userSelect = 'auto';
+        activeDrag = null; Blockly.svgResize(workspace);
+      }
+    });
+    window.addEventListener('resize', () => Blockly.svgResize(workspace));
+
+    // Refreshes the top registry container tracking loaded data matrices
+    function renderFileRegistryUI() {
+      const container = document.getElementById('fileRegistry');
+      if (sessionUploadedFiles.size === 0) {
+        container.innerHTML = `<span style="color: #718096; font-style: italic;">No session files loaded yet</span>`;
+        return;
+      }
+      container.innerHTML = Array.from(sessionUploadedFiles)
+        .map(name => `<span class="file-badge">${name}</span>`)
+        .join(' ');
+    }
+
+    // Sandbox Local File Syncing
+    document.getElementById('csvFileInput').addEventListener('change', function(e) {
+      const file = e.target.files[0]; if (!file) return;
+      const reader = new FileReader();
+      const outputArea = document.getElementById('output');
+      reader.onload = async function(evt) {
+        outputArea.textContent = "Parsing data file into virtual sandbox filesystem...\n";
+        try {
+          pyodideInstance.FS.writeFile(file.name, evt.target.result);
+          sessionUploadedFiles.add(file.name);
+          renderFileRegistryUI();
+          outputArea.textContent = `Successfully stored: "${file.name}" inside the sandboxed filesystem!\n\nYou can now reference this file directly in your workspace by using the "Load CSV File" block and entering "${file.name}".`;
+        } catch (parseErr) { outputArea.textContent = `File Saving Failure:\n${parseErr.message}`; }
+      };
+      reader.readAsText(file);
+    });
+
+    async function initPythonEnvironment() {
+      const outputArea = document.getElementById('output');
+      try {
+        pyodideInstance = await loadPyodide();
+        outputArea.textContent = "Engine loaded. Compiling packages...\n";
+        await pyodideInstance.loadPackage(["pandas", "matplotlib", "scipy"]);
+        window.document.pyodideMplTarget = document.getElementById('plotTarget');
+        
+        const runBtn = document.getElementById('runBtn');
+        runBtn.innerText = "▶ Run Analysis Code";
+        runBtn.disabled = false;
+        runBtn.onclick = runPythonCode;
+        
+        document.getElementById('csvFileInput').disabled = false;
+        outputArea.textContent = "Ready to accept analytics pipeline execution commands.";
+      } catch(e) { outputArea.textContent = "Initialization anomaly: " + e.message; }
+    }
+    initPythonEnvironment();
+
+    async function runPythonCode() {
+      const outputArea = document.getElementById('output');
+      let code = cleanAndGenerateCode();
+      outputArea.textContent = "Processing pipeline algorithms...\n";
+      
+      if (!code.trim()) { 
+        outputArea.textContent = "Workspace empty. Chain components together first."; 
+        return; 
+      }
+
+      try {
+        await pyodideInstance.runPythonAsync("import matplotlib.pyplot as plt\nplt.close('all')");
+        document.getElementById('plotTarget').innerHTML = "";
+        pyodideInstance.runPython(`import sys\nimport io\nsys.stdout = io.StringIO()`);
+        await pyodideInstance.runPythonAsync(code);
+        outputArea.textContent = pyodideInstance.runPython("sys.stdout.getvalue()") || "Pipeline completed calculations flawlessly.";
+      } catch (err) { outputArea.textContent = `Python Processing Error:\n${err.message}`; }
+    }
+  </script>
+</body>
+</html>
