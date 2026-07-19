@@ -235,6 +235,11 @@
         </value>
       </block>
       <block type="numpy_math_single"></block>
+      <block type="numpy_gradient">
+        <value name="SPACING">
+          <block type="math_number"><field name="NUM">1</field></block>
+        </value>
+      </block>
       <block type="numpy_array_from_list"></block>
       <block type="numpy_arange">
         <value name="START">
@@ -312,11 +317,9 @@
     Blockly.Msg["LISTS_INDEX_FROM_START_TRANS"] = "item #%1";
     Blockly.Blocks['lists_getIndex'].ONE_BASED_INDEXING = false;
     Blockly.Blocks['lists_setIndex'].ONE_BASED_INDEXING = false;
-    // Update the Tooltip strings to reflect 0-based indexing
+    
     Blockly.Msg["LISTS_GET_INDEX_TOOLTIP"] = "Returns the item at the specified position in a list. #0 is the first item.";
     Blockly.Msg["LISTS_SET_INDEX_TOOLTIP"] = "Sets the item at the specified position in a list. #0 is the first item.";
-    
-    // Optional: If you want to be even more specific with the 'GET' vs 'REMOVE' modes
     Blockly.Msg["LISTS_GET_INDEX_TOOLTIP_GET_FROM_START"] = "Returns the item at the specified index. #0 is the first item.";
     Blockly.Msg["LISTS_GET_INDEX_TOOLTIP_REMOVE_FROM_START"] = "Removes and returns the item at the specified index. #0 is the first item.";
 
@@ -443,6 +446,19 @@
           { "type": "input_value", "name": "INPUT" }
         ],
         "output": null, "colour": 210
+      },
+      {
+        "type": "numpy_gradient",
+        "message0": "numpy gradient of array %1 (Optional Spacing Δx) %2",
+        "args0": [
+          { "type": "input_value", "name": "ARRAY", "check": "Array" },
+          { "type": "input_value", "name": "SPACING", "check": "Number" }
+        ],
+        "inputsInline": true,
+        "output": null,
+        "colour": 210,
+        "tooltip": "Calculates the central differences gradient (numerical derivative) of a 1D vector. Returns an array of the same shape.",
+        "helpUrl": ""
       },
       {
         "type": "numpy_arange",
@@ -612,6 +628,14 @@
       const gen = generator || pyGenerator; const atomic = getAtomicOrder(gen);
       const input = gen.valueToCode(block, 'INPUT', atomic) || '0';
       return [`${block.getFieldValue('OP')}(np.asarray(${input}))`, atomic];
+    };
+
+    pyGenerator.forBlock['numpy_gradient'] = function(block, generator) {
+      const gen = generator || pyGenerator; const atomic = getAtomicOrder(gen);
+      const arrayCode = gen.valueToCode(block, 'ARRAY', atomic) || "np.array([])";
+      const spacingCode = gen.valueToCode(block, 'SPACING', atomic) || "None";
+      const inlineGradient = `(lambda d, dx: np.gradient(np.asarray(d), dx) if np.asarray(d).size > 0 else np.array([]))(np.asarray(${arrayCode}), ${spacingCode} if '${spacingCode}' != 'None' else 1.0)`;
+      return [inlineGradient, atomic];
     };
 
     pyGenerator.forBlock['pandas_read_csv'] = function(block, generator) {
