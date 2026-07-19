@@ -89,8 +89,8 @@
 </head>
 <body>
 
-  <h2>Biomechanics Lab: Resampling & Control Pipeline</h2>
-  <p>Leverage algorithmic logical blocks, signal interpolators, and data definitions with native 0-based indexing.</p>
+  <h2>Biomechanics Data Analysis Lab</h2>
+  <p>Leverage the scipy family in a Blockly environment for learning scientific coding for biomechanical analysis. (Angus McMorland)</p>
 
   <div class="control-bar">
     <div class="control-group">
@@ -306,6 +306,20 @@
   </xml>
 
   <script>
+    // =========================================================
+    // ENFORCE SYSTEM GLOBAL ZERO-BASED INDEXING OVERRIDES
+    // =========================================================
+    Blockly.Msg["LISTS_INDEX_FROM_START_TRANS"] = "item #%1";
+    Blockly.Blocks['lists_getIndex'].ONE_BASED_INDEXING = false;
+    Blockly.Blocks['lists_setIndex'].ONE_BASED_INDEXING = false;
+    // Update the Tooltip strings to reflect 0-based indexing
+    Blockly.Msg["LISTS_GET_INDEX_TOOLTIP"] = "Returns the item at the specified position in a list. #0 is the first item.";
+    Blockly.Msg["LISTS_SET_INDEX_TOOLTIP"] = "Sets the item at the specified position in a list. #0 is the first item.";
+    
+    // Optional: If you want to be even more specific with the 'GET' vs 'REMOVE' modes
+    Blockly.Msg["LISTS_GET_INDEX_TOOLTIP_GET_FROM_START"] = "Returns the item at the specified index. #0 is the first item.";
+    Blockly.Msg["LISTS_GET_INDEX_TOOLTIP_REMOVE_FROM_START"] = "Removes and returns the item at the specified index. #0 is the first item.";
+
     let pyodideInstance = null;
     let pyGenerator = null;
     let changeListenerTimeout = null;
@@ -539,7 +553,53 @@
     ]);
 
     // =========================================================
-    // 1D MATH & PYTHON CODE GENERATORS
+    // EXPLICIT ZERO-BASED INDEX OVERRIDE GENERATORS
+    // =========================================================
+    pyGenerator.forBlock['lists_getIndex'] = function(block, generator) {
+      const gen = generator || pyGenerator;
+      const atomic = getAtomicOrder(gen);
+      
+      const listCode = gen.valueToCode(block, 'VALUE', atomic) || '[]';
+      const mode = block.getFieldValue('MODE') || 'GET'; 
+      const where = block.getFieldValue('WHERE'); 
+      
+      if (where === 'FROM_START') {
+        const atCode = gen.valueToCode(block, 'AT', atomic) || '0';
+        if (mode === 'GET') {
+          return [`${listCode}[int(${atCode})]`, atomic];
+        } else if (mode === 'REMOVE') {
+          return `${listCode}.pop(int(${atCode}))\n`;
+        }
+      }
+      if (where === 'FIRST') return [`${listCode}[0]`, atomic];
+      if (where === 'LAST') return [`${listCode}[-1]`, atomic];
+      return [`${listCode}[0]`, atomic];
+    };
+
+    pyGenerator.forBlock['lists_setIndex'] = function(block, generator) {
+      const gen = generator || pyGenerator;
+      const atomic = getAtomicOrder(gen);
+      
+      const listCode = gen.valueToCode(block, 'LIST', atomic) || '[]';
+      const mode = block.getFieldValue('MODE') || 'SET';
+      const where = block.getFieldValue('WHERE');
+      const valueCode = gen.valueToCode(block, 'TO', atomic) || 'None';
+      
+      if (where === 'FROM_START') {
+        const atCode = gen.valueToCode(block, 'AT', atomic) || '0';
+        if (mode === 'SET') {
+          return `${listCode}[int(${atCode})] = ${valueCode}\n`;
+        } else if (mode === 'INSERT') {
+          return `${listCode}.insert(int(${atCode}), ${valueCode})\n`;
+        }
+      }
+      if (where === 'FIRST') return (mode === 'SET') ? `${listCode}[0] = ${valueCode}\n` : `${listCode}.insert(0, ${valueCode})\n`;
+      if (where === 'LAST') return (mode === 'SET') ? `${listCode}[-1] = ${valueCode}\n` : `${listCode}.append(${valueCode})\n`;
+      return `${listCode}[0] = ${valueCode}\n`;
+    };
+
+    // =========================================================
+    // STANDARD GENERATORS FOR PANDAS / NUMPY LAB PANELS
     // =========================================================
     pyGenerator.forBlock['numpy_arithmetic'] = function(block, generator) {
       const gen = generator || pyGenerator; const atomic = getAtomicOrder(gen);
@@ -770,7 +830,9 @@ else:
       changeListenerTimeout = setTimeout(() => { cleanAndGenerateCode(); saveWorkspaceToLocalStorage(); }, 150);
     });
 
+    // Load storage workspace after configurations are set
     loadWorkspaceFromLocalStorage();
+    cleanAndGenerateCode();
 
     // Horizontal & Vertical Layout Drag Configuration
     const gridMaster = document.getElementById('gridMaster');
